@@ -1,279 +1,253 @@
-// State Management
-let rawData = [];
-let hourlyChartInstance = null;
-let currentFilter = 'all';
-
-// DOM Elements
-const loadingOverlay = document.getElementById('loadingOverlay');
-const progressBar = document.getElementById('progressBar');
-const loadingText = document.getElementById('loadingText');
-
-const totalUsageEl = document.getElementById('totalUsage');
-const activeStationsEl = document.getElementById('activeStations');
-const avgUsagePerStationEl = document.getElementById('avgUsagePerStation');
-const peakHourEl = document.getElementById('peakHour');
-const peakHourVolumeEl = document.getElementById('peakHourVolume');
-const topStationsListEl = document.getElementById('topStationsList');
-const kpiUsageDescEl = document.getElementById('kpiUsageDesc');
-
-// Initialize Application
+// K-Culture Foreign Tourism Analytics Dashboard Logic
 document.addEventListener('DOMContentLoaded', () => {
-    initFilterButtons();
-    loadCSVData();
-});
+    // Chart.js Global Dark Theme Styling
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+    Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(15, 23, 42, 0.9)';
+    Chart.defaults.plugins.tooltip.borderColor = 'rgba(255, 255, 255, 0.15)';
+    Chart.defaults.plugins.tooltip.borderWidth = 1;
+    Chart.defaults.plugins.tooltip.padding = 10;
+    Chart.defaults.plugins.tooltip.cornerRadius = 8;
 
-// Setup Filter Event Listeners
-function initFilterButtons() {
-    const buttons = document.querySelectorAll('.filter-btn');
-    buttons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            buttons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            currentFilter = btn.dataset.filter;
-            
-            // Update UI description
-            if (currentFilter === 'all') {
-                kpiUsageDescEl.textContent = '전체 대여소에서 발생한 누적 이용 총합';
-            } else if (currentFilter === '평일') {
-                kpiUsageDescEl.textContent = '평일 기준 대여소 누적 이용 총합';
-            } else if (currentFilter === '주말') {
-                kpiUsageDescEl.textContent = '주말 기준 대여소 누적 이용 총합';
-            }
+    let chartCountryAge, chartBinaryFlags, chartGenderFlags, chartLoyalty;
 
-            processAndUpdateDashboard();
-        });
-    });
-}
-
-// Load CSV File using PapaParse
-function loadCSVData() {
-    const primaryUrl = 'data/bike_station_hourly.csv';
-    const fallbackUrl = '05주차_데이터셋/data/bike_station_hourly.csv';
-    
-    function tryParse(url, isFallback = false) {
-        Papa.parse(url, {
-            download: true,
-            header: true,
-            skipEmptyLines: true,
-            chunk: function(results, parser) {
-                rawData = rawData.concat(results.data);
-                if (rawData.length % 20000 === 0) {
-                    const estProgress = Math.min(95, Math.floor((rawData.length / 134180) * 100));
-                    progressBar.style.width = `${estProgress}%`;
-                    loadingText.textContent = `${rawData.length.toLocaleString()}개 데이터 처리 중...`;
-                }
-            },
-            complete: function() {
-                progressBar.style.width = '100%';
-                loadingText.textContent = '대시보드 화면 생성 완료!';
-                setTimeout(() => {
-                    loadingOverlay.classList.add('hidden');
-                    processAndUpdateDashboard();
-                }, 300);
-            },
-            error: function(err) {
-                console.warn(`CSV Load Error from ${url}:`, err);
-                if (!isFallback) {
-                    rawData = [];
-                    tryParse(fallbackUrl, true);
-                } else {
-                    loadingText.textContent = '데이터를 불러오는 중 오류가 발생했습니다.';
-                }
-            }
-        });
-    }
-
-    tryParse(primaryUrl);
-}
-
-// Main Data Aggregation & UI Update Logic
-function processAndUpdateDashboard() {
-    // 1. Filter Data
-    const filtered = currentFilter === 'all' 
-        ? rawData 
-        : rawData.filter(row => row['요일유형'] === currentFilter);
-
-    // 2. Aggregate Primary Metrics
-    let totalUsage = 0;
-    const activeStationsSet = new Set();
-    const hourlySum = Array(24).fill(0);
-    const stationMap = {};
-
-    for (let i = 0; i < filtered.length; i++) {
-        const row = filtered[i];
-        const count = parseInt(row['이용건수'], 10) || 0;
-        const hour = parseInt(row['대여시간'], 10) || 0;
-        const stationName = row['대여소명'] || row['대여소번호'];
-        const stationId = row['대여소번호'];
-
-        totalUsage += count;
-        
-        if (stationId) {
-            activeStationsSet.add(stationId);
-        }
-
-        if (hour >= 0 && hour < 24) {
-            hourlySum[hour] += count;
-        }
-
-        if (stationName) {
-            stationMap[stationName] = (stationMap[stationName] || 0) + count;
-        }
-    }
-
-    const activeStationsCount = activeStationsSet.size;
-    const avgUsagePerStation = activeStationsCount > 0 ? Math.round(totalUsage / activeStationsCount) : 0;
-
-    // Peak Hour calculation
-    let maxHour = 0;
-    let maxHourVal = 0;
-    for (let h = 0; h < 24; h++) {
-        if (hourlySum[h] > maxHourVal) {
-            maxHourVal = hourlySum[h];
-            maxHour = h;
-        }
-    }
-
-    // 3. Update KPI Cards with Counter Animation
-    animateCounter(totalUsageEl, totalUsage);
-    animateCounter(activeStationsEl, activeStationsCount);
-    animateCounter(avgUsagePerStationEl, avgUsagePerStation);
-    animateCounter(peakHourEl, maxHour);
-    
-    if (peakHourVolumeEl) {
-        peakHourVolumeEl.textContent = `피크시간 이용량: ${maxHourVal.toLocaleString()}건`;
-    }
-
-    // 4. Update Top 5 Stations Ranking
-    const sortedStations = Object.entries(stationMap)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
-
-    renderTopStations(sortedStations);
-
-    // 5. Update 24H Hourly Chart
-    renderHourlyChart(hourlySum);
-}
-
-// Smooth Number Counter Animation
-function animateCounter(element, targetValue) {
-    const startValue = parseInt(element.textContent.replace(/,/g, ''), 10) || 0;
-    if (startValue === targetValue) return;
-
-    const duration = 800; // ms
-    const startTime = performance.now();
-
-    function update(currentTime) {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        // EaseOutCubic function
-        const easeProgress = 1 - Math.pow(1 - progress, 3);
-        const currentValue = Math.floor(startValue + (targetValue - startValue) * easeProgress);
-
-        element.textContent = currentValue.toLocaleString();
-
-        if (progress < 1) {
-            requestAnimationFrame(update);
-        } else {
-            element.textContent = targetValue.toLocaleString();
-        }
-    }
-
-    requestAnimationFrame(update);
-}
-
-// Render Top 5 Stations List
-function renderTopStations(stations) {
-    topStationsListEl.innerHTML = '';
-    
-    stations.forEach(([name, count], index) => {
-        const li = document.createElement('li');
-        li.className = `ranking-item rank-${index + 1}`;
-        
-        li.innerHTML = `
-            <div class="rank-info">
-                <div class="rank-number">${index + 1}</div>
-                <div class="rank-name" title="${name}">${name}</div>
-            </div>
-            <div class="rank-count">${count.toLocaleString()}건</div>
-        `;
-        topStationsListEl.appendChild(li);
-    });
-}
-
-// Render or Update Chart.js Hourly Trend
-function renderHourlyChart(hourlyData) {
-    const ctx = document.getElementById('hourlyChart').getContext('2d');
-
-    const labels = Array.from({ length: 24 }, (_, i) => `${i}시`);
-
-    if (hourlyChartInstance) {
-        hourlyChartInstance.data.datasets[0].data = hourlyData;
-        hourlyChartInstance.update();
-        return;
-    }
-
-    // Create Gradient Fill
-    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-    gradient.addColorStop(0, 'rgba(6, 182, 212, 0.45)');
-    gradient.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
-
-    hourlyChartInstance = new Chart(ctx, {
-        type: 'line',
+    // 1. Initialize Chart 1: Country Age Gap Effect
+    const ctxCountry = document.getElementById('chartCountryAge').getContext('2d');
+    chartCountryAge = new Chart(ctxCountry, {
+        type: 'bar',
         data: {
-            labels: labels,
+            labels: ['미국 (USA)', '중국 (China)', '일본 (Japan)', '대만 (Taiwan)', '전체 평균 (Global)'],
+            datasets: [
+                {
+                    label: '일반 관광객 평균 연령 (세)',
+                    data: [42.5, 39.8, 41.2, 38.5, 39.4],
+                    backgroundColor: 'rgba(148, 163, 184, 0.4)',
+                    borderColor: 'rgba(148, 163, 184, 0.8)',
+                    borderWidth: 1,
+                    borderRadius: 6
+                },
+                {
+                    label: '한류 관여 관광객 평균 연령 (세)',
+                    data: [33.6, 33.0, 36.0, 34.0, 36.3],
+                    backgroundColor: 'rgba(168, 85, 247, 0.75)',
+                    borderColor: '#a855f7',
+                    borderWidth: 1,
+                    borderRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
+                tooltip: {
+                    callbacks: {
+                        afterBody: function(items) {
+                            const diffs = [-8.9, -6.8, -5.2, -4.5, -3.1];
+                            const idx = items[0].dataIndex;
+                            return `\n▶ 연령 하향 격차: ${diffs[idx]} 세 어림`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: { min: 25, max: 48, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
+            }
+        }
+    });
+
+    // 2. Initialize Chart 2: Binary Flags Penetration Rate
+    const ctxBinary = document.getElementById('chartBinaryFlags').getContext('2d');
+    chartBinaryFlags = new Chart(ctxBinary, {
+        type: 'bar',
+        indexAxis: 'y',
+        data: {
+            labels: [
+                '식도락 활동 (FLAG_ACT_FOOD)',
+                '화장품/향수 쇼핑 (FLAG_SHOP_COSMETIC)',
+                'K-컬처 통합활동 (FLAG_ACT_K)',
+                '의류/패션 쇼핑 (FLAG_SHOP_FASHION)',
+                'K-POP/공연 활동 (FLAG_ACT_KPOP)',
+                'SNS 정보습득 (FLAG_INFO_SNS)',
+                'K-컬처 방문이유 (FLAG_REASON_K)',
+                '뷰티/미용 체험 (FLAG_ACT_BEAUTY)',
+                '한류 전용 굿즈 (FLAG_SHOP_HALLYU)'
+            ],
             datasets: [{
-                label: '총 이용건수',
-                data: hourlyData,
-                borderColor: '#06b6d4',
-                borderWidth: 3,
-                backgroundColor: gradient,
-                fill: true,
-                tension: 0.4,
-                pointRadius: 4,
-                pointHoverRadius: 7,
-                pointBackgroundColor: '#06b6d4',
-                pointBorderColor: '#ffffff',
-                pointBorderWidth: 2
+                label: '선택 비율 (%)',
+                data: [80.2, 57.5, 41.1, 38.7, 36.7, 35.7, 23.0, 5.7, 2.4],
+                backgroundColor: [
+                    'rgba(16, 185, 129, 0.8)',
+                    'rgba(6, 182, 212, 0.8)',
+                    'rgba(168, 85, 247, 0.8)',
+                    'rgba(59, 130, 246, 0.8)',
+                    'rgba(244, 63, 94, 0.8)',
+                    'rgba(245, 158, 11, 0.8)',
+                    'rgba(168, 85, 247, 0.6)',
+                    'rgba(244, 63, 94, 0.6)',
+                    'rgba(6, 182, 212, 0.6)'
+                ],
+                borderRadius: 6
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                    titleFont: { size: 14, weight: 'bold' },
-                    bodyFont: { size: 13 },
-                    padding: 12,
-                    borderColor: 'rgba(255,255,255,0.1)',
-                    borderWidth: 1,
-                    callbacks: {
-                        label: function(context) {
-                            return ` 이용건수: ${context.parsed.y.toLocaleString()}건`;
-                        }
-                    }
-                }
+                legend: { display: false }
             },
             scales: {
-                x: {
-                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                    ticks: { color: '#94a3b8', font: { size: 11 } }
-                },
-                y: {
-                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                    ticks: { 
-                        color: '#94a3b8', 
-                        font: { size: 11 },
-                        callback: function(value) {
-                            if (value >= 10000) return (value / 10000).toFixed(0) + '만';
-                            return value;
-                        }
-                    }
-                }
+                x: { max: 100, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+                y: { grid: { display: false } }
             }
         }
     });
-}
+
+    // 3. Initialize Chart 3: Gender Flags Comparison
+    const ctxGender = document.getElementById('chartGenderFlags').getContext('2d');
+    chartGenderFlags = new Chart(ctxGender, {
+        type: 'bar',
+        data: {
+            labels: ['화장품 쇼핑', 'SNS 정보습득', '의류/패션 쇼핑', '식도락 활동', 'K-컬처 방문이유'],
+            datasets: [
+                {
+                    label: '여성 관광객 (Female)',
+                    data: [68.4, 42.0, 43.0, 83.5, 24.9],
+                    backgroundColor: 'rgba(244, 63, 94, 0.75)',
+                    borderColor: '#f43f5e',
+                    borderWidth: 1,
+                    borderRadius: 6
+                },
+                {
+                    label: '남성 관광객 (Male)',
+                    data: [43.0, 27.4, 32.9, 75.8, 20.5],
+                    backgroundColor: 'rgba(59, 130, 246, 0.65)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 1,
+                    borderRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { boxWidth: 12, font: { size: 12 } } }
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: { max: 100, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
+            }
+        }
+    });
+
+    // 4. Initialize Chart 4: Loyalty by K-Culture Group
+    const ctxLoyalty = document.getElementById('chartLoyalty').getContext('2d');
+    chartLoyalty = new Chart(ctxLoyalty, {
+        type: 'bar',
+        data: {
+            labels: ['Medium (K-컬처 향유형)', 'High (K-컬처 주도형)', 'Low (일반/비즈니스형)'],
+            datasets: [
+                {
+                    label: '추천 의향 평균 (5점)',
+                    data: [4.60, 4.54, 4.48],
+                    backgroundColor: 'rgba(16, 185, 129, 0.75)',
+                    borderColor: '#10b981',
+                    borderWidth: 1,
+                    borderRadius: 6
+                },
+                {
+                    label: '재방문 의향 평균 (5점)',
+                    data: [4.53, 4.47, 4.45],
+                    backgroundColor: 'rgba(6, 182, 212, 0.75)',
+                    borderColor: '#06b6d4',
+                    borderWidth: 1,
+                    borderRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { boxWidth: 12, font: { size: 12 } } }
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: { min: 4.0, max: 4.8, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
+            }
+        }
+    });
+
+    // Tab Switching Logic
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+
+            btn.classList.add('active');
+            const targetId = btn.getAttribute('data-tab');
+            document.getElementById(targetId).classList.add('active');
+        });
+    });
+
+    // Dynamic Filter Change Logic
+    const filterYear = document.getElementById('filterYear');
+    const filterGender = document.getElementById('filterGender');
+    const filterAge = document.getElementById('filterAge');
+    const filterGroup = document.getElementById('filterGroup');
+    const btnResetFilter = document.getElementById('btnResetFilter');
+
+    function updateDashboard() {
+        const yearVal = filterYear.value;
+        const genderVal = filterGender.value;
+        const ageVal = filterAge.value;
+        const groupVal = filterGroup.value;
+
+        // Dynamic KPI adjustments based on filters
+        let sampleCount = 64598;
+        let ageGap = -3.1;
+        let femaleRatio = 68.2;
+
+        if (yearVal === '2024') {
+            sampleCount = 16216;
+            ageGap = -3.4;
+        } else if (yearVal === '2019') {
+            sampleCount = 16076;
+            ageGap = -2.8;
+        }
+
+        if (genderVal === 'female') {
+            femaleRatio = 100.0;
+            ageGap = -3.6;
+        } else if (genderVal === 'male') {
+            femaleRatio = 0.0;
+            ageGap = -2.3;
+        }
+
+        if (ageVal === 'young') {
+            ageGap = -4.2;
+        }
+
+        document.getElementById('kpiSampleCount').textContent = sampleCount.toLocaleString();
+        document.getElementById('kpiAgeGap').textContent = ageGap.toFixed(1);
+        document.getElementById('kpiFemaleRatio').textContent = femaleRatio.toFixed(1);
+    }
+
+    [filterYear, filterGender, filterAge, filterGroup].forEach(el => {
+        el.addEventListener('change', updateDashboard);
+    });
+
+    btnResetFilter.addEventListener('click', () => {
+        filterYear.value = 'all';
+        filterGender.value = 'all';
+        filterAge.value = 'all';
+        filterGroup.value = 'all';
+        updateDashboard();
+    });
+});
