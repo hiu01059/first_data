@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>서울시 따릉이 대여소 이용 현황 대시보드</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-brand">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-bicycle"></i>
+                </div>
+                <div>
+                    <h1>서울시 따릉이 이용 현황 대시보드</h1>
+                    <p class="subtitle">대여소별 시간대별 데이터 종합 분석</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <div class="filter-group">
+                    <button class="filter-btn active" data-filter="all">
+                        <i class="fa-solid fa-globe"></i> 전체
+                    </button>
+                    <button class="filter-btn" data-filter="평일">
+                        <i class="fa-solid fa-briefcase"></i> 평일
+                    </button>
+                    <button class="filter-btn" data-filter="주말">
+                        <i class="fa-solid fa-mug-hot"></i> 주말
+                    </button>
+                </div>
+                <div class="live-badge">
+                    <span class="pulse-dot"></span> 데이터 로드됨
+                </div>
+            </div>
+        </header>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay">
+            <div class="spinner-box">
+                <div class="spinner"></div>
+                <p id="loadingText">데이터를 분석하고 집계하는 중입니다...</p>
+                <div class="progress-bar-container">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main KPI Section (Focus: 총 이용건수 & 운영 대여소 수) -->
+        <section class="kpi-grid">
+            <!-- KPI 1: 총 이용건수 -->
+            <div class="kpi-card primary-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-icon-box cyan">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </div>
+                    <span class="kpi-tag">CORE METRIC</span>
+                </div>
+                <div class="kpi-body">
+                    <h3 class="kpi-label">총 이용건수</h3>
+                    <div class="kpi-value-container">
+                        <span id="totalUsage" class="kpi-value">0</span>
+                        <span class="kpi-unit">건</span>
+                    </div>
+                    <p class="kpi-desc" id="kpiUsageDesc">전체 대여소에서 발생한 누적 이용 총합</p>
+                </div>
+                <div class="kpi-footer-glow cyan-glow"></div>
+            </div>
+
+            <!-- KPI 2: 운영 대여소 수 -->
+            <div class="kpi-card primary-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-icon-box emerald">
+                        <i class="fa-solid fa-location-dot"></i>
+                    </div>
+                    <span class="kpi-tag">CORE METRIC</span>
+                </div>
+                <div class="kpi-body">
+                    <h3 class="kpi-label">운영 대여소 수</h3>
+                    <div class="kpi-value-container">
+                        <span id="activeStations" class="kpi-value">0</span>
+                        <span class="kpi-unit">개소</span>
+                    </div>
+                    <p class="kpi-desc">서울시 내 정상 운영 중인 총 대여소 개수</p>
+                </div>
+                <div class="kpi-footer-glow emerald-glow"></div>
+            </div>
+
+            <!-- KPI 3: 대여소당 평균 이용건수 -->
+            <div class="kpi-card secondary-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-icon-box purple">
+                        <i class="fa-solid fa-calculator"></i>
+                    </div>
+                    <span class="kpi-subtag">CALCULATED</span>
+                </div>
+                <div class="kpi-body">
+                    <h3 class="kpi-label">대여소당 평균 이용건수</h3>
+                    <div class="kpi-value-container">
+                        <span id="avgUsagePerStation" class="kpi-value">0</span>
+                        <span class="kpi-unit">건/소</span>
+                    </div>
+                    <p class="kpi-desc">대여소 1곳당 평균 누적 대여 건수</p>
+                </div>
+            </div>
+
+            <!-- KPI 4: 최다 이용 시간대 -->
+            <div class="kpi-card secondary-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-icon-box amber">
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                    <span class="kpi-subtag">PEAK HOUR</span>
+                </div>
+                <div class="kpi-body">
+                    <h3 class="kpi-label">최다 이용 피크시간</h3>
+                    <div class="kpi-value-container">
+                        <span id="peakHour" class="kpi-value">18</span>
+                        <span class="kpi-unit">시</span>
+                    </div>
+                    <p class="kpi-desc" id="peakHourVolume">퇴근길 대여집중 시간대</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Visual Analysis Dashboard Grid -->
+        <section class="charts-grid">
+            <!-- Hourly Usage Chart -->
+            <div class="chart-card glass-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-chart-area"></i> 시간대별(0시~23시) 총 이용건수 추이</h2>
+                    <span class="panel-badge">24H Distribution</span>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="hourlyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Top Stations Ranking -->
+            <div class="ranking-card glass-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-trophy"></i> 최다 이용 대여소 TOP 5</h2>
+                    <span class="panel-badge">Top Performing</span>
+                </div>
+                <ul id="topStationsList" class="ranking-list">
+                    <!-- Dynamic rendering -->
+                </ul>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <p>서울시 따릉이 대여소 시간대별 이용 데이터 분석 | data/bike_station_hourly.csv</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
