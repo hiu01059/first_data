@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>서울시 따릉이 대여소 이용 현황 대시보드</title>
+    <title>K-컬처 외래관광객 소비 패턴 및 연령 구조 분석 대시보드</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,8 +12,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- PapaParse for CSV parsing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -22,147 +20,351 @@
         <header class="dashboard-header">
             <div class="header-brand">
                 <div class="logo-icon">
-                    <i class="fa-solid fa-bicycle"></i>
+                    <i class="fa-solid fa-earth-asia"></i>
                 </div>
                 <div>
-                    <h1>서울시 따릉이 이용 현황 대시보드</h1>
-                    <p class="subtitle">대여소별 시간대별 데이터 종합 분석</p>
+                    <h1>외래관광객 K-컬처 소비 패턴 & 연령 구조 대시보드</h1>
+                    <p class="subtitle">문체부·한국관광공사 외래관광객조사 마이크로데이터 (N = 64,598)</p>
                 </div>
             </div>
             <div class="header-actions">
-                <div class="filter-group">
-                    <button class="filter-btn active" data-filter="all">
-                        <i class="fa-solid fa-globe"></i> 전체
-                    </button>
-                    <button class="filter-btn" data-filter="평일">
-                        <i class="fa-solid fa-briefcase"></i> 평일
-                    </button>
-                    <button class="filter-btn" data-filter="주말">
-                        <i class="fa-solid fa-mug-hot"></i> 주말
-                    </button>
-                </div>
                 <div class="live-badge">
-                    <span class="pulse-dot"></span> 데이터 로드됨
+                    <span class="pulse-dot"></span> 데이터셋 로드됨 (64,598 샘플)
                 </div>
             </div>
         </header>
 
-        <!-- Loading Overlay -->
-        <div id="loadingOverlay" class="loading-overlay">
-            <div class="spinner-box">
-                <div class="spinner"></div>
-                <p id="loadingText">데이터를 분석하고 집계하는 중입니다...</p>
-                <div class="progress-bar-container">
-                    <div id="progressBar" class="progress-bar"></div>
+        <!-- Filter Bar -->
+        <section class="filter-section glass-panel">
+            <div class="filter-row">
+                <div class="filter-item">
+                    <label><i class="fa-solid fa-calendar-days"></i> 조사 연도</label>
+                    <select id="filterYear" class="filter-select">
+                        <option value="all">전체 연도 (2019~2025)</option>
+                        <option value="2019">2019년 (코로나 이전)</option>
+                        <option value="2023">2023년</option>
+                        <option value="2024">2024년 (팬덤 확대)</option>
+                        <option value="2025">2025년</option>
+                    </select>
                 </div>
-            </div>
-        </div>
-
-        <!-- Main KPI Section (Focus: 총 이용건수 & 운영 대여소 수) -->
-        <section class="kpi-grid">
-            <!-- KPI 1: 총 이용건수 -->
-            <div class="kpi-card primary-kpi">
-                <div class="kpi-header">
-                    <div class="kpi-icon-box cyan">
-                        <i class="fa-solid fa-chart-line"></i>
-                    </div>
-                    <span class="kpi-tag">CORE METRIC</span>
+                <div class="filter-item">
+                    <label><i class="fa-solid fa-venus-mars"></i> 성별 타깃</label>
+                    <select id="filterGender" class="filter-select">
+                        <option value="all">전체 성별</option>
+                        <option value="female">여성 (68.2% 한류 타깃)</option>
+                        <option value="male">남성</option>
+                    </select>
                 </div>
-                <div class="kpi-body">
-                    <h3 class="kpi-label">총 이용건수</h3>
-                    <div class="kpi-value-container">
-                        <span id="totalUsage" class="kpi-value">0</span>
-                        <span class="kpi-unit">건</span>
-                    </div>
-                    <p class="kpi-desc" id="kpiUsageDesc">전체 대여소에서 발생한 누적 이용 총합</p>
+                <div class="filter-item">
+                    <label><i class="fa-solid fa-user-group"></i> 연령 세그먼트</label>
+                    <select id="filterAge" class="filter-select">
+                        <option value="all">전체 연령대</option>
+                        <option value="young">청년층 (20~30대)</option>
+                        <option value="senior">비청년층 (40대 이상)</option>
+                    </select>
                 </div>
-                <div class="kpi-footer-glow cyan-glow"></div>
-            </div>
-
-            <!-- KPI 2: 운영 대여소 수 -->
-            <div class="kpi-card primary-kpi">
-                <div class="kpi-header">
-                    <div class="kpi-icon-box emerald">
-                        <i class="fa-solid fa-location-dot"></i>
-                    </div>
-                    <span class="kpi-tag">CORE METRIC</span>
+                <div class="filter-item">
+                    <label><i class="fa-solid fa-layer-group"></i> K-컬처 관여도</label>
+                    <select id="filterGroup" class="filter-select">
+                        <option value="all">전체 관여도 집단</option>
+                        <option value="High">High (주도형 33.7%)</option>
+                        <option value="Medium">Medium (향유형 38.5%)</option>
+                        <option value="Low">Low (일반/비즈니스 27.8%)</option>
+                    </select>
                 </div>
-                <div class="kpi-body">
-                    <h3 class="kpi-label">운영 대여소 수</h3>
-                    <div class="kpi-value-container">
-                        <span id="activeStations" class="kpi-value">0</span>
-                        <span class="kpi-unit">개소</span>
-                    </div>
-                    <p class="kpi-desc">서울시 내 정상 운영 중인 총 대여소 개수</p>
-                </div>
-                <div class="kpi-footer-glow emerald-glow"></div>
-            </div>
-
-            <!-- KPI 3: 대여소당 평균 이용건수 -->
-            <div class="kpi-card secondary-kpi">
-                <div class="kpi-header">
-                    <div class="kpi-icon-box purple">
-                        <i class="fa-solid fa-calculator"></i>
-                    </div>
-                    <span class="kpi-subtag">CALCULATED</span>
-                </div>
-                <div class="kpi-body">
-                    <h3 class="kpi-label">대여소당 평균 이용건수</h3>
-                    <div class="kpi-value-container">
-                        <span id="avgUsagePerStation" class="kpi-value">0</span>
-                        <span class="kpi-unit">건/소</span>
-                    </div>
-                    <p class="kpi-desc">대여소 1곳당 평균 누적 대여 건수</p>
-                </div>
-            </div>
-
-            <!-- KPI 4: 최다 이용 시간대 -->
-            <div class="kpi-card secondary-kpi">
-                <div class="kpi-header">
-                    <div class="kpi-icon-box amber">
-                        <i class="fa-solid fa-clock"></i>
-                    </div>
-                    <span class="kpi-subtag">PEAK HOUR</span>
-                </div>
-                <div class="kpi-body">
-                    <h3 class="kpi-label">최다 이용 피크시간</h3>
-                    <div class="kpi-value-container">
-                        <span id="peakHour" class="kpi-value">18</span>
-                        <span class="kpi-unit">시</span>
-                    </div>
-                    <p class="kpi-desc" id="peakHourVolume">퇴근길 대여집중 시간대</p>
+                <div class="filter-item reset-box">
+                    <button id="btnResetFilter" class="btn-reset">
+                        <i class="fa-solid fa-rotate-left"></i> 필터 초기화
+                    </button>
                 </div>
             </div>
         </section>
 
-        <!-- Visual Analysis Dashboard Grid -->
-        <section class="charts-grid">
-            <!-- Hourly Usage Chart -->
-            <div class="chart-card glass-panel">
-                <div class="panel-header">
-                    <h2><i class="fa-solid fa-chart-area"></i> 시간대별(0시~23시) 총 이용건수 추이</h2>
-                    <span class="panel-badge">24H Distribution</span>
+        <!-- Main KPI Grid -->
+        <section class="kpi-grid">
+            <!-- KPI 1: Total Sample -->
+            <div class="kpi-card primary-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-icon-box cyan">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                    <span class="kpi-tag">MICRODATA</span>
                 </div>
-                <div class="chart-wrapper">
-                    <canvas id="hourlyChart"></canvas>
+                <div class="kpi-body">
+                    <h3 class="kpi-label">분석 대상 관광객 수</h3>
+                    <div class="kpi-value-container">
+                        <span id="kpiSampleCount" class="kpi-value">64,598</span>
+                        <span class="kpi-unit">명</span>
+                    </div>
+                    <p class="kpi-desc">가중치(weight) 적용 실증 표본</p>
+                </div>
+                <div class="kpi-footer-glow cyan-glow"></div>
+            </div>
+
+            <!-- KPI 2: Age Gap Effect -->
+            <div class="kpi-card primary-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-icon-box purple">
+                        <i class="fa-solid fa-arrow-down-short-wide"></i>
+                    </div>
+                    <span class="kpi-tag">CORE FINDING</span>
+                </div>
+                <div class="kpi-body">
+                    <h3 class="kpi-label">한류 연령 하향 효과</h3>
+                    <div class="kpi-value-container">
+                        <span id="kpiAgeGap" class="kpi-value">-3.1</span>
+                        <span class="kpi-unit">세</span>
+                    </div>
+                    <p class="kpi-desc">일반 39.4세 vs 한류팬 36.3세</p>
+                </div>
+                <div class="kpi-footer-glow purple-glow"></div>
+            </div>
+
+            <!-- KPI 3: Female Ratio -->
+            <div class="kpi-card secondary-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-icon-box rose">
+                        <i class="fa-solid fa-venus"></i>
+                    </div>
+                    <span class="kpi-subtag">GENDER TARGET</span>
+                </div>
+                <div class="kpi-body">
+                    <h3 class="kpi-label">한류 팬 여성 비율</h3>
+                    <div class="kpi-value-container">
+                        <span id="kpiFemaleRatio" class="kpi-value">68.2</span>
+                        <span class="kpi-unit">%</span>
+                    </div>
+                    <p class="kpi-desc">남성(31.8%) 대비 2.1배 이상 높음</p>
                 </div>
             </div>
 
-            <!-- Top Stations Ranking -->
-            <div class="ranking-card glass-panel">
-                <div class="panel-header">
-                    <h2><i class="fa-solid fa-trophy"></i> 최다 이용 대여소 TOP 5</h2>
-                    <span class="panel-badge">Top Performing</span>
+            <!-- KPI 4: Food & Cosmetic -->
+            <div class="kpi-card secondary-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-icon-box emerald">
+                        <i class="fa-solid fa-utensils"></i>
+                    </div>
+                    <span class="kpi-subtag">TOP CONSUMPTION</span>
                 </div>
-                <ul id="topStationsList" class="ranking-list">
-                    <!-- Dynamic rendering -->
-                </ul>
+                <div class="kpi-body">
+                    <h3 class="kpi-label">식도락 / 화장품 쇼핑율</h3>
+                    <div class="kpi-value-container">
+                        <span id="kpiFoodRatio" class="kpi-value">80.2</span>
+                        <span class="kpi-unit">% / 57.5%</span>
+                    </div>
+                    <p class="kpi-desc">외국인 관광 필수 대중 소비 항목</p>
+                </div>
+            </div>
+
+            <!-- KPI 5: Loyalty Score -->
+            <div class="kpi-card secondary-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-icon-box amber">
+                        <i class="fa-solid fa-star"></i>
+                    </div>
+                    <span class="kpi-subtag">LOYALTY SCORE</span>
+                </div>
+                <div class="kpi-body">
+                    <h3 class="kpi-label">평균 추천 및 재방문 의향</h3>
+                    <div class="kpi-value-container">
+                        <span id="kpiLoyalty" class="kpi-value">4.55</span>
+                        <span class="kpi-unit">/ 5.0 점</span>
+                    </div>
+                    <p class="kpi-desc">K-컬처 관여도 높을수록 유의미한 상승</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Row 1 -->
+        <section class="charts-grid-two">
+            <!-- Chart 1: Simpsons Paradox & Country Age Gap -->
+            <div class="chart-card glass-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2><i class="fa-solid fa-earth-americas"></i> 국가별 한류 관광객 연령 하향 효과 (심슨의 역설 제거)</h2>
+                        <p class="panel-sub">일반 관광객 vs 한류 관광객의 평균 나이 차이 (단위: 세)</p>
+                    </div>
+                    <span class="panel-badge cyan-badge">Country Breakdown</span>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="chartCountryAge"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 2: Binary Flags Penetration Rate -->
+            <div class="chart-card glass-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2><i class="fa-solid fa-list-check"></i> K-컬처 및 쇼핑 이진 플래그(Binary Flag) 침투율 (%)</h2>
+                        <p class="panel-sub">전체 6.4만 명 응답자의 각 행위별 1(선택) 비율</p>
+                    </div>
+                    <span class="panel-badge purple-badge">Binary Flag Ratios</span>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="chartBinaryFlags"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Row 2 -->
+        <section class="charts-grid-two">
+            <!-- Chart 3: Gender Comparison on Flags -->
+            <div class="chart-card glass-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2><i class="fa-solid fa-venus-mars"></i> 성별에 따른 주요 이진 플래그 선택 비율 비교 (%)</h2>
+                        <p class="panel-sub">여성 vs 남성의 SNS, 화장품, 패션, 식도락 소비 패턴</p>
+                    </div>
+                    <span class="panel-badge rose-badge">Gender Comparison</span>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="chartGenderFlags"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 4: K-Culture Group & Loyalty Correlation -->
+            <div class="chart-card glass-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2><i class="fa-solid fa-chart-column"></i> K-컬처 관여도 그룹별 재방문 및 추천 의향 (5점 만점)</h2>
+                        <p class="panel-sub">High (주도형 33.7%), Medium (향유형 38.5%), Low (일반 27.8%)</p>
+                    </div>
+                    <span class="panel-badge emerald-badge">Group Loyalty</span>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="chartLoyalty"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Strategy & Insights Tabs Section -->
+        <section class="strategy-section glass-panel">
+            <div class="tab-header">
+                <button class="tab-btn active" data-tab="tab1"><i class="fa-solid fa-lightbulb"></i> 핵심 데이터 분석 요약</button>
+                <button class="tab-btn" data-tab="tab2"><i class="fa-solid fa-bullseye"></i> 3차원 맞춤 액션 플랜</button>
+                <button class="tab-btn" data-tab="tab3"><i class="fa-solid fa-table"></i> 주요 국가별 비교 세그먼트</button>
+            </div>
+
+            <div class="tab-content-container">
+                <!-- Tab 1: Key Findings -->
+                <div id="tab1" class="tab-content active">
+                    <div class="insights-grid">
+                        <div class="insight-box">
+                            <div class="insight-icon purple"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                            <div>
+                                <h4>1. 평균 나이 3.1세 하향 & 팬덤 에이징(Fandom Aging) 현상</h4>
+                                <p>한류 관여 관광객의 평균 나이는 36.3세로 일반 관광객(39.4세) 대비 3.1세 어립니다. 2019년 1020 위주였던 팬덤이 2024년 구매력을 갖춘 3040 직장인 팬덤으로 성장하고, OTT K-드라마 확산으로 연령 스펙트럼이 대폭 확대되었습니다.</p>
+                            </div>
+                        </div>
+                        <div class="insight-box">
+                            <div class="insight-icon rose"><i class="fa-solid fa-heart"></i></div>
+                            <div>
+                                <h4>2. 여성 68.2% + SNS 42.0% + 화장품 68.4% 핵심 고리</h4>
+                                <p>여성 관광객은 SNS 정보 습득(42.0% vs 남성 27.4%)과 화장품 쇼핑(68.4% vs 남성 43.0%)에서 높은 반응률을 보이며 K-뷰티 및 디지털 마케팅의 핵심 타깃으로 검증되었습니다.</p>
+                            </div>
+                        </div>
+                        <div class="insight-box">
+                            <div class="insight-icon cyan"><i class="fa-solid fa-filter"></i></div>
+                            <div>
+                                <h4>3. 심슨의 역설(Simpson's Paradox) 해소</h4>
+                                <p>미국(-8.9세), 중국(-6.8세), 일본(-5.2세) 등 개별 국가별로 분해 검증한 결과, 모든 국가 내부에서 한류 관광객의 연령이 일관되게 어림을 수학적으로 증명했습니다.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Action Plan -->
+                <div id="tab2" class="tab-content">
+                    <div class="action-grid">
+                        <div class="action-card">
+                            <div class="action-header">
+                                <span class="action-num">01</span>
+                                <h4>일본 1020 타깃: 원데이 K-라이프 패키지</h4>
+                            </div>
+                            <p>일본 한류 팬 연령(-5.2세 하향)에 맞춰 올리브영 K-뷰티, 성수동 팝업스토어, 인생네컷, 식도락(80.2%) 연계 원데이 체험 투어 상품 기획.</p>
+                        </div>
+                        <div class="action-card">
+                            <div class="action-header">
+                                <span class="action-num">02</span>
+                                <h4>미주/유럽 2030 타깃: K-드라마 & 웰니스 힐링</h4>
+                            </div>
+                            <p>연령 하향 폭이 가장 큰 미주/유럽(-8.9세) 관광객 대상 K-드라마 성지순례와 지방 웰니스/전통문화 연계 힐링 상품 개발.</p>
+                        </div>
+                        <div class="action-card">
+                            <div class="action-header">
+                                <span class="action-num">03</span>
+                                <h4>LCC 항공권 & K-POP 콘서트 결합 프로모션</h4>
+                            </div>
+                            <p>일본/동남아 노선 LCC(저비용항공사)와 제휴하여 K-POP 콘서트 시즌 맞춤 항공+티켓+굿즈 결합 프로모션 진행.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Country Matrix Table -->
+                <div id="tab3" class="tab-content">
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>국가/지역</th>
+                                    <th>일반 관광객 평균 연령</th>
+                                    <th>한류 관광객 평균 연령</th>
+                                    <th>연령 하향 격차</th>
+                                    <th>여성 비율 (%)</th>
+                                    <th>추천 의향 (5점)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong><i class="fa-solid fa-flag"></i> 미국 (USA)</strong></td>
+                                    <td>42.5세</td>
+                                    <td><strong>33.6세</strong></td>
+                                    <td><span class="badge-tag red">-8.9세</span></td>
+                                    <td>65.4%</td>
+                                    <td>4.62점</td>
+                                </tr>
+                                <tr>
+                                    <td><strong><i class="fa-solid fa-flag"></i> 중국 (China)</strong></td>
+                                    <td>39.8세</td>
+                                    <td><strong>33.0세</strong></td>
+                                    <td><span class="badge-tag red">-6.8세</span></td>
+                                    <td>71.2%</td>
+                                    <td>4.58점</td>
+                                </tr>
+                                <tr>
+                                    <td><strong><i class="fa-solid fa-flag"></i> 일본 (Japan)</strong></td>
+                                    <td>41.2세</td>
+                                    <td><strong>36.0세</strong></td>
+                                    <td><span class="badge-tag red">-5.2세</span></td>
+                                    <td><strong>74.8%</strong></td>
+                                    <td>4.55점</td>
+                                </tr>
+                                <tr>
+                                    <td><strong><i class="fa-solid fa-flag"></i> 대만 (Taiwan)</strong></td>
+                                    <td>38.5세</td>
+                                    <td><strong>34.0세</strong></td>
+                                    <td><span class="badge-tag red">-4.5세</span></td>
+                                    <td>69.0%</td>
+                                    <td>4.52점</td>
+                                </tr>
+                                <tr>
+                                    <td><strong><i class="fa-solid fa-globe"></i> 전체 평균 (Global)</strong></td>
+                                    <td>39.4세</td>
+                                    <td><strong>36.3세</strong></td>
+                                    <td><span class="badge-tag purple">-3.1세</span></td>
+                                    <td>68.2%</td>
+                                    <td>4.55점</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </section>
 
         <!-- Footer -->
         <footer class="dashboard-footer">
-            <p>서울시 따릉이 대여소 시간대별 이용 데이터 분석 | data/bike_station_hourly.csv</p>
+            <p>외래관광객 K-컬처 데이터 분석 프로젝트 | 문체부·한국관광공사 마이크로데이터 (N = 64,598)</p>
         </footer>
     </div>
 
